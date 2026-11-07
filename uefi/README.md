@@ -13,9 +13,11 @@ What is here, in `files/`:
 - `Resources/Configs/mondrian.toml` — `[uefi_fd] base = 0xA7100000 size = 0x300000`, `[boot_image] header_version = 4`
   (the K60's own boot.img is v4, so `mkxnuimg.py` packs the same way);
 - `Resources/DTBs/mondrian.dtb` — the phone's vendor_boot tree, the same file as `../prebuilt/device-tree.dtb`;
-- `Binaries/mondrian`: the vendor's UEFI drivers, **not tracked**: you make this directory yourself from your own
-  phone (`uefi/README.md` of the common repository says how, with UEFIReader on your xbl); `files/Binaries/mondrian/README.md`
-  is kept: it lists the patches that were applied to them, and `Include/*.inc` lists the files the build expects.
+- `Binaries/mondrian`: the vendor's UEFI drivers, **not tracked**: you make this directory yourself from your
+  own phone — `tools/pull-uefi.sh` copies the `uefi` partition out, UEFIReader turns it into the driver tree, and
+  `files/Binaries/mondrian/README.md` writes the whole recipe down (it also lists the patches the reference
+  phone's copies carry). `Include/*.inc` is generated from the vendor lists that come with that extraction by
+  `uefi/make-includes.py`, so the build asks for exactly the drivers this phone has.
 
 ```sh
 devices/mondrian/uefi/apply.sh     # = uefi/apply.sh mondrian
