@@ -9,8 +9,10 @@ panel, its touch controller, its PMIC haptics, its GPU, its Wi-Fi) are not. `dev
 which area is where, and the last section of this file says what each driver still needs.
 
 Everything in this directory was read out of the phone's own firmware, `mondrian_images_OS3.0.8.0.VMNCNXM`
-(`vendor_boot.img`'s device tree, `dtbo.img`'s overlays, `boot.img`'s header) — no number here is the
-reference phone's.
+(`vendor_boot.img`'s device tree, `dtbo.img`'s overlays, `boot.img`'s header) and then out of the phone itself
+once it was rooted (its runtime device tree, its `thermal_zone*` names, its `kgsl` clocks, its `/vendor` firmware
+directories) — no number here is the reference phone's. The last section but one, *What the phone says about
+itself*, is the measured half.
 
 ## Status
 
@@ -49,21 +51,27 @@ soc/configs/sm8475.config   CONFIG_SOC, cores, bootcpu, cpufreq/socinfo/thermal 
 metal.args                  what hakios-metal gets (fb_hz=60 fb_threads=3; the GPU is not supported yet)
 pull-soc.sh                 read the SoC's addresses off the phone (needs adb; soc-args.py does the reading)
 pull-firmware.sh            read the GPU/Wi-Fi/audio/modem firmware off the phone's /vendor
-prebuilt/device-tree.dtb    the SoC's tree, out of vendor_boot.img (6,443,651 bytes)
-prebuilt/mondrian-board-overlay.dtb   the board's overlay, out of dtbo.img (entry 019)
+prebuilt/device-tree.dtb    the phone's tree as it runs it, /sys/firmware/fdt (919,202 bytes, SoC + board merged)
+prebuilt/mondrian-board-overlay.dtb   the board's overlay on its own, out of dtbo.img (entry 019)
 prebuilt/{mkbootimg.py,ramdisk}       what mkxnuimg.py packs with
 prebuilt/README.md          what is missing there and which command makes it
 uefi/apply.sh               put this phone's platform into Mu-Silicium (uefi/apply.sh mondrian)
 uefi/export.sh              take it back out
 uefi/files/…                the platform: memory map, configuration map, driver list, FDT blob, mondrian.toml
 uefi/README.md              what was borrowed from marble (the Poco F5) and why
-tools/merge-dtbo.sh         fdtoverlay the board onto the SoC tree (for the drivers that are not written yet)
+tools/pull-fdt.sh           copy /sys/firmware/fdt off a rooted phone into prebuilt/ and the two UEFI copies
+tools/merge-dtbo.sh         fdtoverlay the board onto the SoC tree, from the two vendor images, without a phone
 ```
 
 `make mondrian_defconfig`, then `make phone`. Read `prebuilt/README.md` first: `make phone` needs
 `BootShim.bin` and `SILICIUM_UEFI.fd`, which only a UEFI build produces.
 
 ## Where the numbers come from
+
+The tree this port ships (`prebuilt/device-tree.dtb`, 919,202 bytes) is not either of those blobs: it is
+`/sys/firmware/fdt` — what the bootloader actually hands a kernel after merging `dtbo.img` into
+`vendor_boot.img`'s tree. The two vendor blobs are kept apart below because that is how they arrive, and
+`tools/merge-dtbo.sh` rebuilds the merge from them when there is no phone to ask.
 
 `vendor_boot.img` (page 4096, header v4) carries the SoC's device tree at 0x1f00000: 6,443,651 bytes,
 model `Qualcomm Technologies, Inc. Cape LTE Only SoC`, `qcom,msm-id = <0x21c 0x10000>`. It has no
@@ -142,6 +150,30 @@ argument whose default is still the reference phone's value — so `redwood` beh
 | `tools/update-prebuilt.sh` | takes the device from `.config` (`CONFIG_DEVICE`) instead of hard-coding redwood |
 | `docs/boot-args.md`, `configs/boot-args.lst`, `configs/symbols.tsv` | regenerated: 358 arguments |
 
+## What the phone says about itself
+
+Measured on a booted, rooted K60 (`adb shell su`) on 2026-11-08, firmware `OS3.0.8.0.VMNCNXM`. These are the
+numbers the drivers are written against; where they disagree with the reference phone's, the driver is what has
+to move.
+
+| what | how it was read | what it says |
+| --- | --- | --- |
+| SoC number | `cat /sys/devices/soc0/soc_id` | **530** — `hakios.socinfo.c`'s table has 530 for "SM8475 (\"cape\")", so the guess was right (`machine` = `CAPE`, `platform_version` = 65536, `revision` = 1.0) |
+| panel | `cat /sys/class/drm/card0-DSI-1/modes` | `1440x3200x60cmd`, `1440x3200x90cmd`, `1440x3200x120cmd` — command mode, three rates; backlight is `/sys/class/backlight/panel0-backlight` |
+| GPU | `cat /sys/class/kgsl/kgsl-3d0/gpu_model` | **`Adreno730`**, `max_gpuclk` 900 MHz, 13 steps (900, 862, 815, 765, 710, 645, 580, 515, 439, 364, 324, 285, 220 MHz) |
+| touch | `/proc/bus/input/devices` | `goodix_ts` on `event7` (plus `uinput-goodix` on `event1`) — one controller, no second source |
+| keys | `/proc/bus/input/devices` | `gpio-keys` `event0`, `pmic_pwrkey` `event2`, `pmic_resin` `event3`, and the two "bark" wakeup devices `event4`/`event5` |
+| haptics | `/proc/bus/input/devices` | `qcom-hv-haptics` on `event6` — the PM8350B block, reached as `c42d000.qcom,spmi:qcom,pm8350b@3:qcom,hv-haptics@f000` in dmesg |
+| SPMI | `dmesg` | every PMIC device hangs off **`c42d000.qcom,spmi`** — the `cnfg` window of `qcom,spmi@c42d000`; the arbiter's `core` stays 0xc400000 and `obsrvr` 0xc440000 |
+| PMICs | `thermal_zone*` names | `pm8350`, `pm8350c`, `pm8350b`, `pmr735a`, `pmr735b` — the five the device tree names |
+| thermal | `cat /sys/class/thermal/thermal_zone*/type` | 71 zones. The tsens ones: `aoss-0`, `cpuss-0..3`, `cpu-1-0..cpu-1-8`, `cpu-0-0..3`, `nspss-0..2`, `video`, `ddr`, `mdmss-0..3`, `camera-0`, `camera-1`, `gpuss-0/1`, `aoss-1`. That is **three more sensors than the reference phone's 26** (`cpu-1-8`, `nspss-2`, `camera-1`), so `hakios.thermal.c`'s table is not just renamed, it is short |
+| battery, USB | `ls /sys/class/power_supply` | `battery`, `usb`, `wireless`, `ucsi-source-psy-soc:qcom,pmic_glink:qcom,ucsi1` |
+| torch, LEDs | `ls /sys/class/leds` | `led:torch_0..3`, `led:flash_0..3`, `led:switch_0..2` — a three-LED PM8350C flash plus the switch |
+| UFS | `ls /sys/class/scsi_host` | `host0`, `proc_name` = `ufshcd` |
+| firmware | `ls /vendor/firmware_mnt/image`, `ls /vendor/firmware` | `adsp.*` 26 files, `cdsp.*` 18, `slpi.*` 24, `modem.*` 30, `ipa_fws.*` 6, `qca6490/` 222, and in `/vendor/firmware`: `a730_sqe.fw`, `a730_zap.{mdt,b00,b01,b02}`, `gmu_gen70000.bin` |
+| device tree | `cat /sys/firmware/fdt` | 919,202 bytes, `model = "Mondrian based on Qualcomm Technologies, Inc SM8475"` — the merged tree this port ships as `prebuilt/device-tree.dtb` |
+| boot line | `cat /proc/cmdline` | `msm_drm.dsi_display0=qcom,mdss_dsi_m11a_42_02_0a_dsc_cmd:` (the panel the board tree names), `mtdoops.fingerprint=mondrian:12/OS3.0.8.0.VMNCNXM:user`, `hwid.project=14`, `log_buf_len=2M` |
+
 ## What each remaining driver needs
 
 The pattern is always the same: the driver in this tree was written against the POCO X5 Pro (SC7280 /
@@ -168,11 +200,16 @@ something different for a PMIC haptics block: steps 1 and 2 make sense, 3 does n
 `0x03d90000`/`0x9000` (the K60's `cape-gpucc` is 0x3d90000/0xa000 — the same block, a longer
 window), the speed bin is read from the efuse at `0x784000` (line 410: the SM8475's efuse is
 elsewhere), and lines 444–445 name the parts 0xac/0xbe "643" and everything else "642L" — the K60's
-GPU is an Adreno 730, with `a730_gmu.bin`, `a730_sqe.fw`, `a730_zap.mdt/.b00-.b02` (that is what
-`pull-firmware.sh` pulls). `hakios-metal` knows a single chip id (0x06030500) and refuses anything
+GPU is an Adreno 730, with `a730_sqe.fw`, `a730_zap.mdt/.b00-.b02`, and its GMU image is `gmu_gen70000.bin`
+(there is no `a730_gmu.bin` on this phone; `pull-firmware.sh` pulls the four that exist). The measured
+`kgsl` facts are in *What the phone says about itself*: `Adreno730`, 900 MHz maximum, 13 steps. `hakios-metal` knows a single chip id (0x06030500) and refuses anything
 else, so the display stays on the framebuffer until that table grows.
 
-**wifi** — the K60 has a WCN6856, the driver speaks a WCN6750 (`drivers/wifi/hakios.wifi.c:151`).
+**wifi** — the K60 has a WCN6856, the driver speaks a WCN6750 (`drivers/wifi/hakios.wifi.c:151`), and the
+two radios do not even share a firmware scheme: the WCN6750 boots a split image (`wpss.mdt` + `.b02`–`.b07`),
+while this phone carries a whole directory, `/vendor/firmware_mnt/image/qca6490/` (222 files: `amss.bin`,
+`amss20.bin`, `m3.bin`, `regdb.bin`, `regdb_xiaomi.bin`, `bdwlan.e01`–`e1d`, 42 `bd_*.elf` board files and
+two `.msc` files). `pull-firmware.sh` copies that directory as it is.
 Its own copies of the SoC's addresses are still hard-coded and are *not* all the K60's:
 `ipcc` at 0x408000 (line 843; the K60's is 0xed18000), `rsc` at 0x18220000 (line 1003; 0x17a20000),
 the arbiter at 0xc440000/0xc40a000/0xe600000 (lines 1069–1071; the K60's are
@@ -213,6 +250,8 @@ is the phone's own business — read its `thermal-zones` once the blocks answer.
   K60's own reserved memory rather than copied from marble, because marble's map puts `Display Demura`
   at 0xa1400000, which on this phone is inside `adsp@0x9fd00000`. The firmware's own rows (UEFI FD,
   stacks, heaps) keep the cape family's addresses, which are what `mondrian.toml` promises.
-- The device tree HakiOS boots with is the SoC's, `prebuilt/device-tree.dtb`. The board's overlay is
-  shipped beside it, and `tools/merge-dtbo.sh` merges the two with `fdtoverlay` when a driver needs the
-  board's nodes — that tool is not part of this tree.
+- The device tree HakiOS boots with, `prebuilt/device-tree.dtb`, is the phone's `/sys/firmware/fdt`: the
+  SoC's tree with the board's overlay already merged by the bootloader, which is exactly what this phone
+  hands a kernel. `tools/pull-fdt.sh` refetches it from a rooted phone; `tools/merge-dtbo.sh` reproduces it
+  from `vendor_boot.img` + `dtbo.img` when no phone is at hand (it needs `fdtoverlay`, which is not part of
+  this tree).
