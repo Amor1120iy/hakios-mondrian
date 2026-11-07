@@ -35,7 +35,7 @@ itself*, is the measured half.
 | bluetooth | missing | three-wire, as on the reference phone |
 | cellular | missing | SM8475 modem, IPA v4.11; needs the modem firmware and a Darwin user space |
 | network | missing | follows wifi and cellular |
-| thermal | partial | tsens at 0xc263000/0xc265000 — the same addresses as the reference phone's; sensor names are the reference phone's |
+| thermal | works, unverified | tsens at 0xc263000/0xc265000 (same addresses as the reference phone); the K60's own 32-sensor map is in the driver, selected by `thermal_map=sm8475` from its tree |
 | usb | missing | not started |
 | sensors | missing | not started |
 
@@ -100,6 +100,12 @@ addresses that script does not read (it prints 12 of the 16):
 Left out on purpose: `soc_ipa_stream=0x5c0` and `soc_ipa_stream_uc=0x5c2`. The loader's command line
 holds 607 characters and a run already spends about 260; those two only matter once `CONFIG_MODEM` is
 on, and they are in `soc.args` as a comment for that day.
+
+Given by the configuration: `thermal_map=sm8475` (from `CONFIG_THERMAL_MAP`) — without it the driver uses
+the reference phone's sensor layout, and on this SoC that reads the wrong sensor for every name past the
+first four (the K60 puts `cpuss-0..3` on block 0 and `cpu-0-0..3` on block 1, and has `cpu-1-8`, `nspss-2`
+and `camera-1` that the SC7280 does not). The map itself was made by `tools/dt-thermal.py` from the phone's
+own `/sys/firmware/fdt`; both tables live in `drivers/power/hakios.thermal.c`.
 
 Not needed: `thermal_tm0`/`thermal_tm1` (0xc263000/0xc265000 are already the defaults) and
 `cpu_domains` (default `0,0,0,0,1,1,1,2` is this phone's 4+3+1 cluster split; the K60's EPSS has the
