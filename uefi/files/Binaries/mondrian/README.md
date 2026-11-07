@@ -35,14 +35,23 @@ edk2 modules are built from source and their module names are not the ones the v
 
 ## Patches/Fixes
 
-The patches below are the ones the reference phone's (redwood's) drivers carry. The extracted copies here are
-this phone's *unpatched* drivers, so apply the ones that apply and record below what you actually did:
+The patches below are the ones the reference phone's (redwood's) drivers carry. The extracted copies are this
+phone's *unpatched* drivers. `uefi/patch-drivers.py` applies the one that can be proven in the image and says
+plainly what it will not touch:
+
+```sh
+py uefi/patch-drivers.py Mu-Silicium/Binaries/mondrian --dry-run   # then without --dry-run
+```
 
 ### ButtonsDxe:
 
 - **Reason:** To make the Power Button usable in UEFI.
 - **Patch:** The Special Qcom Key Code (`0x102`) has been Changed to the Key Code Enter (`0xD`).
 - **Patch Creator:** [Gustave Monce](https://github.com/gus33000)
+- **Applied here:** yes, by `uefi/patch-drivers.py` on 2026-11-08. The image has exactly one
+  `mov w8, #0x102` (`0x52802048`, file offset `0x3b7c`, in `.text`), and it sits in the branch that
+  substitutes the code — `cmp w1, #1` / `b.ne` at `0x3b74`/`0x3b78`, `b` at `0x3b80` — so the site is
+  proven, not guessed. The word is now `0x528001a8` (`mov w8, #0xd`).
 
 ### DALSYSDxe:
 
