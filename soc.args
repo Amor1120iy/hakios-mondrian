@@ -1,0 +1,33 @@
+# devices/mondrian/soc.args: the SM8475 addresses this phone needs that are not the kernel's built-in (reference
+# phone) values. tools/soc-only-changes.sh sends only the lines that differ, and the kernel's command line holds 607
+# characters, so a value equal to the reference phone's is left out on purpose.
+#
+# Made from the phone's own device tree: boot.img's vendor_boot dtb (the SM8475 base tree) with
+# tools/soc-args.py, and the rest read out of the same tree by hand -- see devices/mondrian/README.md.
+# Re-run devices/mondrian/pull-soc.sh on the phone to check them against what it reports.
+
+# --- modem and IPA (data from the base tree: qcom,ipa@3e00000, qcom,ipcc@ed18000, rsc@17a00000) ---
+soc_ipa_base=0x3e40000
+soc_gsi_base=0x3e04000
+soc_ipcc=0xed18000
+soc_rsc=0x17a20000
+soc_mpss_mem=0x8bc00000
+modem_ipa_fw_at=0x8b900000
+soc_ipa_fw=ipa_fws
+# the IPA's two doorbells: with the modem, the command line is over its 607 characters by 16 with them in and
+# CONFIG_MODEM off, so they are sent from the day the modem is turned on (devices/mondrian/README.md counts it)
+# soc_ipa_stream=0x5c0
+# soc_ipa_stream_uc=0x5c2
+
+# --- the CPU's and the memory's blocks (not in the reference phone's set: these arguments are newer than it) ---
+# qcom,cpufreq-hw-epss: freq-domain0 at 0x17d91000 (three domains: 4 little, 3 mid, 1 prime -- the same shape as
+# the reference phone, so cpu_domains= is not needed)
+soc_epss=0x17d91000
+# qcom,dcvs-fp: ddr-bcm-name "MC3", llcc-bcm-name "SH5" (the reference phone votes on MC0/SH0)
+ddr_mc=MC3
+ddr_sh=SH5
+
+# --- the PMIC arbiter (qcom,spmi@c42d000: cnfg, core and obsrvr are all at other addresses than on the reference) ---
+soc_spmi_core=0xc400000
+soc_spmi_cnfg=0xc42d000
+soc_spmi_obs=0xc440000
