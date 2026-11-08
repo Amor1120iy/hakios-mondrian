@@ -68,6 +68,12 @@ APRIORI DXE {
   INF Binaries/mondrian/QcomPkg/Drivers/SecRSADxe/SecRSADxe.inf
   INF Binaries/mondrian/QcomPkg/Drivers/VerifiedBootDxe/VerifiedBootDxe.inf
 
+
+  # the phone's own APRIORI order
+
+
+  # the phone's own APRIORI order
+
   INF MdeModulePkg/Universal/PCD/Dxe/Pcd.inf
   INF QcomPkg/Drivers/IortDtDxe/IortDtDxe.inf
 

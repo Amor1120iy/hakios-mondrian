@@ -56,8 +56,10 @@ class SettingsManager (UpdateSettingsManager, SetupSettingsManager, PrEvalSettin
         return CommonPlatform.TargetsSupported
 
     def GetRequiredSubmodules (self):
+        # No "Binaries" here: this port carries its own driver set in Binaries/mondrian (extracted from the phone
+        # by tools/pull-uefi.sh, see uefi/files/Binaries/mondrian/README.md), and asking stuart for the vendor's
+        # Binaries submodule would both fetch a gigabyte of other phones' files and refuse to check out over ours.
         return [
-            RequiredSubmodule ("Binaries", True),
             RequiredSubmodule ("Common/Mu", True),
             RequiredSubmodule ("Common/Mu_OEM_Sample", True),
             RequiredSubmodule ("Mu_Basecore", True),

@@ -32,9 +32,17 @@ def phone_list(path, want_prefix):
         if not m:
             continue
         inf = m.group(1)
-        if inf.startswith(want_prefix):
+        if inf.startswith(want_prefix) and inf not in SKIP_INFS:
             out.append(inf)
     return out
+
+
+# Modules that live in the vendor's boot loader, not in the DXE the firmware hands over. The reference
+# platforms (lisa, pong) do not list them either, and the DSC has no rule that could build them as a binary,
+# so edk2 stops with "Don't Find common rule RULE.COMMON.SEC.BINARY for INF .../XBLCore.inf".
+SKIP_INFS = {
+    'QcomPkg/XBLCore/XBLCore.inf',
+}
 
 
 def have(binaries, inf):
@@ -44,7 +52,16 @@ def have(binaries, inf):
 def rebuild_dxe(binaries, includes, device):
     cur = read_lines(os.path.join(includes, 'DXE.inc'))
     keep = [l for l in cur if 'Binaries/%s/QcomPkg' % device not in l]
-    phone = [i for i in phone_list(os.path.join(binaries, 'DXE.inc'), 'QcomPkg/') if have(binaries, i)]
+    # The vendor's DXE.inc can name a driver twice, and APRIORI.inc names some of the same ones; both files
+    # are included into one FV, and GenFv refuses two files with one GUID, so the DXE list is deduped and
+    # stripped of everything APRIORI already carries.
+    apriori = set(phone_list(os.path.join(binaries, 'APRIORI.inc'), 'QcomPkg/'))
+    seen = []
+    for i in phone_list(os.path.join(binaries, 'DXE.inc'), 'QcomPkg/'):
+        if i in apriori or i in seen or not have(binaries, i):
+            continue
+        seen.append(i)
+    phone = seen
     missing = [i for i in phone_list(os.path.join(binaries, 'DXE.inc'), 'QcomPkg/') if not have(binaries, i)]
     body = ['  INF Binaries/%s/%s' % (device, i) for i in phone]
     # splice: everything that was kept, with the phone's QcomPkg block set right after the first INF line

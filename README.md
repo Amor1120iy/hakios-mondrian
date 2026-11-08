@@ -244,6 +244,21 @@ lists 26 sensors as "aoss-0, cpu-0-0 …" from the reference phone's tree. The K
 the same addresses with the same register layout (`qcom,tsens-v2`), but which channel is which sensor
 is the phone's own business — read its `thermal-zones` once the blocks answer.
 
+## The firmware is built
+
+`uefi/README.md` now ends with the recipe that actually produced it on this Windows box, no Visual Studio:
+clang + `mingw32-make` for the "mingw32 host" path, `rc.exe` from `llvm-rc`, BaseTools' python paths fixed,
+`PYTHONUTF8=1` for a Chinese locale, and `lisa`'s ACPI tables. The result:
+
+| piece | size | sha256 |
+| --- | --- | --- |
+| `prebuilt/SILICIUM_UEFI.fd` | 3,145,728 (0x300000) | `b19f15227ef96eaf216a9341f70524b36b00402340d79b972a9595d112053efb` |
+| `prebuilt/BootShim.bin` | 176 | `ddfccdd8589985b9683696b8cb08868007a9e8ee577b867332dbc612155e242a` |
+| `xnu-mondrian.img` (kernel slot) | 1,490,944 | `7e7630f29d98bbc283caf98c6186dad43c7a4ecaeff33d39e54456c1f017a01d` |
+
+The image has the firmware and the shim but not XNU: the kernel needs the Apple toolchain, which this machine
+does not have. `make phone` on such a machine adds it.
+
 ## Limits of this port as it stands
 
 - Nothing here has been compiled or run: this workspace has no aarch64 toolchain (no clang for XNU, no

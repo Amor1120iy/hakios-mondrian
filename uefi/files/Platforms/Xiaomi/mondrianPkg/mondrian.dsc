@@ -83,4 +83,4 @@
   #
   # ACPI Tables
   #
-  marble/AcpiTables.inf
+  lisa/AcpiTables.inf
